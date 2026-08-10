@@ -1,0 +1,49 @@
+name: Fieldwork Telugu width probe
+
+on:
+  pull_request:
+    branches:
+      - research/upstream-4800-snapshot
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  telugu-width:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler pkg-config libssl-dev
+
+      - name: Record exact source identity
+        run: |
+          set -euxo pipefail
+          git rev-parse HEAD
+          git show -s --format='%H %P %s' HEAD
+          test "$(git merge-base HEAD research/upstream-4800-snapshot)" = "d5c04daccfac765814e55ef2b89543bbe711629d"
+
+      - name: Inject execution-only target-native controls
+        run: |
+          set -euxo pipefail
+          cat fieldwork/telugu_width_probe_tests.rs >> zellij-server/src/panes/unit/grid_tests.rs
+          tail -n 80 zellij-server/src/panes/unit/grid_tests.rs
+
+      - name: Execute focused Zellij grid controls
+        run: |
+          set -euxo pipefail
+          cargo test --locked -p zellij-server fieldwork_telugu --lib -- --nocapture
+
+      - name: Preserve exact receipt
+        if: always()
+        run: |
+          set +e
+          printf 'base=%s\n' 'd5c04daccfac765814e55ef2b89543bbe711629d'
+          printf 'head=%s\n' "$(git rev-parse HEAD)"
+          printf 'tests=%s\n' 'fieldwork_telugu_*'
+          git diff -- zellij-server/src/panes/unit/grid_tests.rs
