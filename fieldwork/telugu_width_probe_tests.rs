@@ -9,6 +9,13 @@ fn fieldwork_scalar_width(text: &str) -> usize {
         .sum()
 }
 
+fn fieldwork_advance(grid: &mut Grid, bytes: &[u8]) {
+    let mut parser = vte::Parser::new();
+    for byte in bytes {
+        parser.advance(grid, *byte);
+    }
+}
+
 #[test]
 fn fieldwork_telugu_critical_cluster_preserves_text_but_diverges_from_scalar_columns() {
     let text = "ద్యం";
@@ -47,4 +54,32 @@ fn fieldwork_telugu_full_reporter_line_has_twenty_four_internal_columns_and_thir
     assert_eq!(row_text(&grid.viewport[0]), text, "draft must retain the exact full reporter line");
     assert_eq!(grid.cursor.x, 24, "draft internal cursor policy for the full reporter line");
     assert_eq!(fieldwork_scalar_width(text), 32, "scalar terminal policy for the same serialized text");
+}
+
+#[test]
+fn fieldwork_telugu_scalar_cursor_move_targets_a_different_column_without_2027() {
+    let text = "ద్యం";
+    let mut grid = create_grid_with_content(text);
+    let scalar_cursor_before = fieldwork_scalar_width(text);
+    assert_eq!(scalar_cursor_before, 3);
+    assert_eq!(grid.cursor.x, 1);
+
+    // A scalar-width application believes it is at column 3 and uses CUB 2 to reach column 1.
+    // The draft grid starts at column 1, so the same ordinary cursor command saturates at 0.
+    fieldwork_advance(&mut grid, b"\x1b[2D");
+    assert_eq!(grid.cursor.x, 0, "ordinary CUB follows the draft's narrower stored column state");
+    assert_eq!(scalar_cursor_before.saturating_sub(2), 1, "scalar-width caller intended column 1");
+}
+
+#[test]
+fn fieldwork_telugu_control_cursor_move_stays_aligned_without_2027() {
+    let text = "వ్రా";
+    let mut grid = create_grid_with_content(text);
+    let scalar_cursor_before = fieldwork_scalar_width(text);
+    assert_eq!(scalar_cursor_before, 2);
+    assert_eq!(grid.cursor.x, 2);
+
+    fieldwork_advance(&mut grid, b"\x1b[1D");
+    assert_eq!(grid.cursor.x, 1);
+    assert_eq!(scalar_cursor_before.saturating_sub(1), 1);
 }
