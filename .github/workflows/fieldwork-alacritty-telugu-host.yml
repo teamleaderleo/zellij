@@ -1,0 +1,49 @@
+name: Fieldwork Alacritty Telugu host probe
+
+on:
+  pull_request:
+    branches:
+      - research/upstream-4800-snapshot
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alacritty-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ALACRITTY_SHA: 1b2b36a64e88068ad02c95fad00ee2fad31c00bf
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch exact Alacritty source read-only
+        run: |
+          set -euxo pipefail
+          git init /tmp/alacritty
+          git -C /tmp/alacritty remote add origin https://github.com/alacritty/alacritty.git
+          git -C /tmp/alacritty fetch --depth=1 origin "$ALACRITTY_SHA"
+          git -C /tmp/alacritty checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/alacritty rev-parse HEAD)" = "$ALACRITTY_SHA"
+
+      - name: Inject execution-only terminal controls
+        run: |
+          set -euxo pipefail
+          cat fieldwork/alacritty_telugu_host_probe.rs >> /tmp/alacritty/alacritty_terminal/src/term/mod.rs
+          tail -n 90 /tmp/alacritty/alacritty_terminal/src/term/mod.rs
+
+      - name: Execute exact Alacritty terminal parser
+        working-directory: /tmp/alacritty
+        run: |
+          set -euxo pipefail
+          cargo test --locked -p alacritty_terminal fieldwork_telugu_host --lib -- --nocapture
+
+      - name: Preserve exact receipt
+        if: always()
+        run: |
+          set +e
+          printf 'alacritty=%s\n' "$(git -C /tmp/alacritty rev-parse HEAD 2>/dev/null)"
+          printf 'carrier=%s\n' '${{ github.event.pull_request.head.sha }}'
+          printf 'tests=%s\n' 'fieldwork_telugu_host_*'
+          git -C /tmp/alacritty diff -- alacritty_terminal/src/term/mod.rs 2>/dev/null || true
