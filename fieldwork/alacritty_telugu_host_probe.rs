@@ -15,7 +15,7 @@ mod fieldwork_telugu_host_probe {
     }
 
     fn advance(term: &mut Term<VoidListener>, bytes: &[u8]) {
-        let mut parser = ansi::Processor::new();
+        let mut parser: ansi::Processor = ansi::Processor::new();
         parser.advance(term, bytes);
     }
 
