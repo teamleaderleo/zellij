@@ -22,17 +22,24 @@ jobs:
           sudo apt-get install -y protobuf-compiler pkg-config libssl-dev
 
       - name: Record exact source identity
+        env:
+          EXPECTED_BASE: d5c04daccfac765814e55ef2b89543bbe711629d
+          EVENT_BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euxo pipefail
           git rev-parse HEAD
-          git show -s --format='%H %P %s' HEAD
-          test "$(git merge-base HEAD research/upstream-4800-snapshot)" = "d5c04daccfac765814e55ef2b89543bbe711629d"
+          git show -s --format='%H %s' HEAD
+          printf 'event_base=%s\n' "$EVENT_BASE"
+          printf 'event_head=%s\n' "$EVENT_HEAD"
+          test "$EVENT_BASE" = "$EXPECTED_BASE"
+          test -n "$EVENT_HEAD"
 
       - name: Inject execution-only target-native controls
         run: |
           set -euxo pipefail
           cat fieldwork/telugu_width_probe_tests.rs >> zellij-server/src/panes/unit/grid_tests.rs
-          tail -n 80 zellij-server/src/panes/unit/grid_tests.rs
+          tail -n 120 zellij-server/src/panes/unit/grid_tests.rs
 
       - name: Execute focused Zellij grid controls
         run: |
@@ -41,9 +48,13 @@ jobs:
 
       - name: Preserve exact receipt
         if: always()
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set +e
-          printf 'base=%s\n' 'd5c04daccfac765814e55ef2b89543bbe711629d'
-          printf 'head=%s\n' "$(git rev-parse HEAD)"
+          printf 'base=%s\n' "$EVENT_BASE"
+          printf 'carrier_head=%s\n' "$EVENT_HEAD"
+          printf 'checkout=%s\n' "$(git rev-parse HEAD)"
           printf 'tests=%s\n' 'fieldwork_telugu_*'
           git diff -- zellij-server/src/panes/unit/grid_tests.rs
